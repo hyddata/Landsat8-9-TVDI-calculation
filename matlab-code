@@ -1,0 +1,849 @@
+clear 
+close all
+clc
+%% choose the satellite 
+Model{1}='Landsat 8';
+Model{2}='Landsat 9';
+sat=questdlg('select satellite','Landsat',Model{1},Model{2},Model{1});
+pause(0.1);
+switch sat
+    case Model{1}
+        list={'20200109','20200125','20200210','20200226','20200313',...
+            '20200329','20200414','20200430','20200516','20200601',...
+            '20200617','20200804','20200820','20201023','20201124',...
+            '20201210','20201226','20210111','20210127','20210212',...
+            '20210228','20210316','20210401','20210417','20210503',...
+            '20210519','20210807','20211026','20211111','20211127',...
+            '20211213','20211229','20220114','20220130','20220215',...
+            '20220303','20220319','20220404','20221029','Cancel'};
+[indx,tf] = listdlg('PromptString',{'Select a date; YYYYMMDD',...
+    'Only one date can be selected at a time.',''},...
+    'SelectionMode','single','ListString',list);
+%inputs
+refm=double(0.00002); %REFLECTANCE_MULT band 1-9   
+refa=-0.1;  %REFLECTANCE_ADD band 1-9
+radm=double(0.00033420);%RADIANCE_MULT band 10,11 
+rada= 0.1; %RADIANCE_ADD band 10-11  
+K1b10=double(774.8853);
+K2b10=double(1321.0789);
+K1b11=double(480.8883);
+K2b11=double(1201.1442);
+%Sun Elevation data
+if indx==1;        tetha=deg2rad(double(48.20526434));
+elseif indx==2;    tetha=deg2rad(double(49.55220655));
+elseif indx==3;    tetha=deg2rad(double(52.20616067));
+elseif indx==4;    tetha=deg2rad(double(55.73029854));
+elseif indx==5;    tetha=deg2rad(double(59.50281766));
+elseif indx==6;    tetha=deg2rad(double(62.75962982));
+elseif indx==7;    tetha=deg2rad(double(64.79075791));
+elseif indx==8;    tetha=deg2rad(double(65.24458307));
+elseif indx==9;    tetha=deg2rad(double(64.47676026));
+elseif indx==10;   tetha=deg2rad(double(63.17797532));
+elseif indx==11;   tetha=deg2rad(double(62.05442212));
+elseif indx==12;   tetha=deg2rad(double(62.93369777));
+elseif indx==13;   tetha=deg2rad(double(64.19031069));
+elseif indx==14;   tetha=deg2rad(double(59.55859634));
+elseif indx==15;   tetha=deg2rad(double(52.33440614));
+elseif indx==16;   tetha=deg2rad(double(49.64740760));
+elseif indx==17;   tetha=deg2rad(double(48.23464617));
+elseif indx==18;   tetha=deg2rad(double(48.33356204));
+elseif indx==19;   tetha=deg2rad(double(49.92937787));
+elseif indx==20;   tetha=deg2rad(double(52.77292764));
+elseif indx==21;   tetha=deg2rad(double(56.39402608));
+elseif indx==22;   tetha=deg2rad(double(60.13548364));
+elseif indx==23;   tetha=deg2rad(double(63.23375506));
+elseif indx==24;   tetha=deg2rad(double(64.99886822));
+elseif indx==25;   tetha=deg2rad(double(65.20352784));
+elseif indx==26;   tetha=deg2rad(double(64.29657705));
+elseif indx==27;   tetha=deg2rad(double(63.17017517));
+elseif indx==28;   tetha=deg2rad(double(58.94756592));
+elseif indx==29;   tetha=deg2rad(double(55.21632377));
+elseif indx==30;   tetha=deg2rad(double(51.80341635));
+elseif indx==31;   tetha=deg2rad(double(49.30482636));
+elseif indx==32;   tetha=deg2rad(double(48.14560113));
+elseif indx==33;   tetha=deg2rad(double(48.50729063));
+elseif indx==34;   tetha=deg2rad(double(50.34265825));
+elseif indx==35;   tetha=deg2rad(double(53.35745356));
+elseif indx==36;   tetha=deg2rad(double(57.04768362));
+elseif indx==37;   tetha=deg2rad(double(60.73229881));
+elseif indx==38;   tetha=deg2rad(double(63.63596849));
+elseif indx==39;   tetha=deg2rad(double(58.33702776));
+
+else disp ('you did not choose a date');    %#ok
+end
+filename=['D:\LandSatUav\bands\L8\',list{indx},'\b4.tif'];
+[aa, R]=readgeoraster(filename);
+info = georasterinfo(filename);
+code=info.CoordinateReferenceSystem.GeographicCRS.Spheroid.Code;
+clear aa
+clear filename
+red=double(readgeoraster(['D:\LandSatUav\bands\L8\',list{indx},'\b4.tif']));
+nir=double(readgeoraster(['D:\LandSatUav\bands\L8\',list{indx},'\b5.tif']));
+Band10=double(readgeoraster(['D:\LandSatUav\bands\L8\',list{indx},'\b10.tif']));
+Band11=double(readgeoraster(['D:\LandSatUav\bands\L8\',list{indx},'\b11.tif']));
+refm=double(0.00002); %REFLECTANCE_MULT band 1-9   
+refa=-0.1;  %REFLECTANCE_ADD band 1-9
+radm10=double(0.00038);%RADIANCE_MULT band 10 Landsat 9
+rada= 0.1; %RADIANCE_ADD band 10-11 
+% DN to Ref
+[h,v]=size(red);
+for i=1:h
+    for j=1:v
+        if red(i,j)<0 || nir(i,j)<0
+            red(i,j)=0;
+            nir(i,j)=0;
+        end
+    end
+end
+
+refred=((red.*refm)+refa)./sin(tetha);
+refnir=(nir.*refm)+refa ./sin(tetha);
+[hh,vv]=size(refred);
+for ii=1:hh
+    for jj=1:vv
+        if refred(ii,jj)== (-0.1/sin(tetha)) || refnir(ii,jj)== (-0.1/sin(tetha))
+            refred(ii,jj)=0;
+            refnir(ii,jj)=0;
+        end
+    end
+end
+pause(0.1);
+
+% DN to Rad
+rad10=(Band10.*radm)+rada;
+rad11=(Band11.*radm)+rada;
+
+% NDVI 
+NDVI=(refnir-refred)./(refnir+refred);
+[a,b]=size(NDVI);
+for i=1:a
+    for j=1:b
+        if NDVI(i,j)<0
+            NDVI(i,j)=nan;
+        elseif NDVI(i,j)>1
+            NDVI(i,j)=nan;
+        end
+    end
+end
+filename=['NDVI-',list{indx},'.tif'];
+geotiffwrite(filename,NDVI,R,"CoordRefSysCode",32630);
+[NDVI, R] = readgeoraster(filename);
+figure
+mapshow(NDVI,R,'DisplayType','mesh')
+demcmap(NDVI)
+title(filename)
+colorbar
+axis image off
+% % % Soil line
+% figure
+% scatter(nonzeros(refred),nonzeros(refnir),'k.');
+% xlabel('Red band Reflection (\mum) ')
+% ylabel('NIR band Reflection (\mum)')
+% dif=((0.95.*nonzeros(refnir))-(1.05 .* nonzeros(refred)));
+% m=[dif nonzeros(refred) nonzeros(refnir)];
+% [hhh,vvv]=size(m);
+% for iii=1:hhh
+%      for jjj=1:vvv
+%          if m(iii,2)> m(iii,3)
+%              m(iii,jjj)=0;
+%          end
+%      end
+%  end
+%  pause(0.1)
+%  for iiii=1:hhh
+%      for jjjj=1:vvv
+%          if m(iiii,1)>=0
+%              m(iiii,jjjj)=0;
+%          end
+%      end
+%  end
+%  s1=nonzeros(m(:,1));
+%  s2=nonzeros(m(:,2));
+%  s3=nonzeros(m(:,3));
+%  s=[s1 s2 s3];
+% 
+% hold on
+% scatter(s2,s3,'rx');
+% grid on
+% X = [ones(size(s2)) s2];
+% b = double(regress(s3,X));
+% YFIT = b(1) + b(2).* s2;
+% plot(s2,YFIT);
+% legend('Red vs NIR','Bare soil pixels','Soil line')
+% grid on
+% pause(0.1)
+% % SAVI calculation
+% WDVI= refnir-(refred .* b(2));
+% L= 1- 2*b(2).* NDVI .* WDVI;
+% SAVI=((refnir-refred)./(refnir+refred+L)).* (1+L);
+% filename2=['mSAVI_',list{indx},'.tif'];
+% geotiffwrite(filename2,SAVI,R,'CoordRefSysCode',32630);
+% 
+% [SAVI, R] = readgeoraster(filename2);
+% figure
+% mapshow(SAVI,R,'DisplayType','mesh')
+% demcmap(SAVI)
+% title(filename2)
+% colorbar
+% axis image off
+pause(0.1);
+% Pv
+NDVI1=NDVI;
+[aa,bb]=size(NDVI);
+for i=1:aa
+    for j=1:bb
+        if NDVI(i,j)<0.2
+            NDVI1(i,j)=0.2;
+        elseif NDVI(i,j)>0.5
+            NDVI1(i,j)=0.5;
+        else
+             NDVI1(i,j)=NDVI(i,j);
+        end
+    end
+end
+
+Pv=((NDVI1-0.2)./(0.3)).^2;
+
+%Surface Emissivity
+F=0.55;
+es=0.966; 
+ev=0.973;
+Ci=(1-es)*ev*F.*(1-Pv);
+em=zeros(size(Pv));
+YY=ev.*Pv;
+YY2=es.*(1-Pv);
+
+
+for qq=1:aa
+    for pp=1:bb
+        if NDVI(qq,pp)<0.2
+            em(qq,pp)= 0.973+(0.047.*refred(qq,pp)); 
+  
+        elseif 0.2<=NDVI(qq,pp)<=0.5
+            em(qq,pp)=YY(qq,pp)+YY2(qq,pp)+Ci(qq,pp);
+            
+
+      
+        else
+            em(qq,pp)= ev +Ci(qq,pp); 
+           
+        end
+    end
+end
+filename=['em-',list{indx},'.tif'];
+geotiffwrite(filename,em,R,"CoordRefSysCode",32630);
+[em, R] = readgeoraster(filename);
+figure
+mapshow(em,R,'DisplayType','mesh')
+demcmap(em)
+title(filename)
+colorbar
+axis image off
+
+pause(0.1)
+% Transmittance
+Prompt={'relative humidity (%)',...
+                'temparture (K)'};
+        Title='RH, T0';
+          DefaultValues={'0','3'};
+           PARAMS=inputdlg(Prompt,Title,[1 20; 1 20],DefaultValues);
+RH=(str2num(PARAMS{1}))/100; %#ok
+if RH>1
+     msgbox('RH should be between 0-100')
+     return
+end
+if RH<0
+     msgbox('RH should be between 0-100')
+     return
+end
+  T0=str2num(PARAMS{2});%#ok
+  w0=(17.27*(T0-273.15))/(273.3+(T0-273.15));
+  w1=exp(w0)*RH*6.108;
+  w2=w1*0.0981;
+  w=w2+0.1697;
+
+if (w>0.2) && (w<3)
+    tow10=(-0.0164*(w^2))-(0.04203*w)+0.9715;
+    tow11=(-0.01218*(w^2))-(0.0735*w)+0.9603;
+elseif  (w>=3) && (w<6)
+    tow10=(-0.00168*(w^2))-(0.1329*w)+1.127;
+    tow11=(0.00918*(w^2))-(0.2137*w)+1.181;
+else
+    msgbox('w is out of range, recheck the inputs')
+    return
+end
+T10=log(((K1b10)./rad10)+1);
+BT10=(K2b10./T10);
+[rf,rf2]=size(BT10);
+for i=1:rf
+    for j=1:rf2
+        if BT10(i,j)> 320
+            BT10(i,j)=0;
+        end
+    end
+end
+T11=log(((K1b11)./rad11)+1);
+BT11=(K2b11./T11);
+[rf,rf2]=size(BT11);
+for i=1:rf
+    for j=1:rf2
+        if BT11(i,j)> 320
+            BT11(i,j)=0;
+        end
+    end
+end
+c1=1.19104356E08;
+c2=14387.7;
+lambda10=10.9;
+lambda11=12;
+f10=((BT10).^2).*(lambda10/c2);
+ff10=1-exp(-c2./((lambda10).*(BT10)));
+fff10=f10.*ff10;
+x=[ones(size(nonzeros(BT10))) nonzeros(BT10)];
+bb10=regress(nonzeros(fff10),x);
+b10=bb10(2);a10=bb10(1);
+figure;
+scatter(nonzeros(BT10),nonzeros(fff10));
+hold on
+Yfit10=(b10.* nonzeros(BT10))+a10;
+plot(nonzeros(BT10),Yfit10)
+xlim tight
+ylim tight
+grid on
+R210=(corr(nonzeros(fff10),Yfit10)).^2;
+f11=((BT11).^2).*(lambda11/c2);
+ff11=1-exp(-c2./((lambda11).*(BT11)));
+fff11=f11.*ff11;
+x=[ones(size(nonzeros(BT11))) nonzeros(BT11)];
+bb11=regress(nonzeros(fff11),x);
+b11=bb11(2);a11=bb11(1);
+figure;
+scatter(nonzeros(BT11),nonzeros(fff11));
+hold on
+Yfit11=(b11.* nonzeros(BT11))+a11;
+plot(nonzeros(BT11),Yfit11)
+xlim tight
+ylim tight
+grid on
+R211=(corr(nonzeros(fff11),Yfit11)).^2;
+a10 %#ok
+b10 %#ok
+a11 %#ok
+b11 %#ok
+% SW algorithm for LST
+D10=(1-tow10)*(1+((1-em).*tow10));
+D11=(1-tow11)*(1+((1-em).*tow11));
+C10=em.*tow10;
+C11=em.*tow11;
+E0=(D11.*C10)-(D10.*C11);
+E2=(D10.*(1-C11-D11))./E0;
+E1=(D11.*(1-C10-D10))./E0;
+A=D10./E0;
+A2=A+(E2.*b11);
+A1=1+A+(E1.*b10);
+A0=(E1.*a10)+(E2.*a11);
+LSTSW=A0+(A1.*BT10)-(A2.*BT11);
+[rf,rf2]=size(LSTSW);
+for i=1:rf
+    for j=1:rf2
+        if LSTSW(i,j)<270 || LSTSW(i,j)> 350 
+            LSTSW(i,j)=nan;
+        end
+    end
+end
+
+filename=['LST-',list{indx},'.tif'];
+geotiffwrite(filename,LSTSW,R,"CoordRefSysCode",32630);
+[LSTSW, R] = readgeoraster(filename);
+figure
+mapshow(LSTSW,R,'DisplayType','mesh')
+demcmap(LSTSW)
+title(filename)
+colorbar
+axis image off
+MeanLST=nanmean(nanmean(LSTSW)) %#ok
+%% TVDI
+LST=LSTSW;
+for i=1:size(NDVI,1)
+    for j=1:size(NDVI,2)
+    if NDVI(i,j)<=0
+        NDVI(i,j)=nan;
+        LST(i,j)=nan;
+    elseif isnan(LST(i,j))>0
+        NDVI(i,j)=nan;
+    end
+    end
+end
+NDVI2=NDVI;LST2=LST; % will be used later
+LST=reshape(LST,[],1);
+NDVI=reshape(NDVI,[],1);
+NDVI(isnan(NDVI))=[];
+LST(isnan(LST))=[];
+figure
+scatter(NDVI, LST,'k.')
+
+L=linspace(min(NDVI),max(NDVI),11);
+
+k1 = find(NDVI>L(1) & NDVI<= L(2)); LSTmax1=max(LST(k1));LSTmin1=min(LST(k1));
+k2 = find(NDVI>L(2) & NDVI<= L(3)); LSTmax2=max(LST(k2));LSTmin2=min(LST(k2));
+k3 = find(NDVI>L(3) & NDVI<= L(4)); LSTmax3=max(LST(k3));LSTmin3=min(LST(k3));
+k4 = find(NDVI>L(4) & NDVI<= L(5)); LSTmax4=max(LST(k4));LSTmin4=min(LST(k4));
+k5 = find(NDVI>L(5) & NDVI<= L(6)); LSTmax5=max(LST(k5));LSTmin5=min(LST(k5));
+k6 = find(NDVI>L(6) & NDVI<= L(7)); LSTmax6=max(LST(k6));LSTmin6=min(LST(k6));
+k7 = find(NDVI>L(7) & NDVI<= L(8)); LSTmax7=max(LST(k7));LSTmin7=min(LST(k7));
+k8 = find(NDVI>L(8) & NDVI<= L(9)); LSTmax8=max(LST(k8));LSTmin8=min(LST(k8));
+k9 = find(NDVI>L(9) & NDVI<= L(10)); LSTmax9=max(LST(k9));LSTmin9=min(LST(k9));
+k10 = find(NDVI>L(10) & NDVI<= L(11)); LSTmax10=max(LST(k10));LSTmin10=min(LST(k10));
+
+LSTmin=[LSTmin1 LSTmin2 LSTmin3 LSTmin4 LSTmin5 LSTmin6 LSTmin7 LSTmin8 LSTmin9 LSTmin10];
+LSTmax=[LSTmax1 LSTmax2 LSTmax3 LSTmax4 LSTmax5 LSTmax6 LSTmax7 LSTmax8 LSTmax9 LSTmax10];
+
+for i=1:10
+    L(i)=(L(i)+ L(i+1))*0.5;
+    
+end
+NDVIData=L(1:10)';
+x=[ones(length(NDVIData),1) NDVIData];
+y1=LSTmax';
+y2=LSTmin';
+bmax=regress(y1,x);
+a1=bmax(1) %#ok 
+b1=bmax(2) %#ok
+bmin=regress(y2,x);
+a2=bmin(1) %#ok 
+b2=bmin(2) %#ok
+LSTmaxLine=a1+(b1.*NDVI2);
+LSTminLine=a2+(b2.*NDVI2);
+hold on
+plot(NDVI2,LSTmaxLine,'r')
+plot(NDVI2,LSTminLine,'b')
+grid on
+TVDI=((LST2-LSTminLine)./(LSTmaxLine-LSTminLine));
+[a,b]=size(TVDI);
+for i=1:a
+    for j=1:b
+        if TVDI(i,j)<0
+            TVDI(i,j)=0;
+
+%         elseif NDVI2(i,j)<=0.2
+%             TVDI(i,j)=1;
+        end
+    end
+end
+
+filename=['TVDI-',list{indx},'.tif'];
+geotiffwrite(filename,TVDI,R,"CoordRefSysCode",32630);
+[TVDI, R] = readgeoraster(filename);
+figure
+mapshow(TVDI,R,'DisplayType','mesh')
+demcmap(TVDI)
+title(filename)
+colorbar
+axis image off
+% 
+
+    case Model{2}
+        list={'20211123','20211205','20211221','20220106','20220122',...
+            '20220207','20220223','20220311','20220327','20220818',...
+            '20221005','20221021','20221106','Cancel'};
+[indx,tf] = listdlg('PromptString',{'Select a date; YYYYMMDD',...
+    'Only one date can be selected at a time.',''},...
+    'SelectionMode','single','ListString',list);
+%inputs
+refm=double(0.00002); %REFLECTANCE_MULT band 1-9   
+refa=-0.1;  %REFLECTANCE_ADD band 1-9
+radm10=double(0.00038000);%RADIANCE_MULT band 10
+radm11=double(0.00034900);%RADIANCE_MULT band 11
+rada= 0.1; %RADIANCE_ADD band 10-11  
+K1b10=double(799.0284);
+K2b10=double(1329.2405);
+K1b11=double(475.6581);
+K2b11=double(1198.3494);
+%Sun Elevation data
+if indx==1;        tetha=deg2rad(double(52.55383630));
+elseif indx==2;    tetha=deg2rad(double(50.39306715));
+elseif indx==3;    tetha=deg2rad(double(48.53124988));
+elseif indx==4;    tetha=deg2rad(double(48.12569850));
+elseif indx==5;    tetha=deg2rad(double(49.25299095));
+elseif indx==6;    tetha=deg2rad(double(51.73234133));
+elseif indx==7;    tetha=deg2rad(double(55.17025382));
+elseif indx==8;    tetha=deg2rad(double(58.95850414));
+elseif indx==9;    tetha=deg2rad(double(62.36061385));
+elseif indx==10;   tetha=deg2rad(double(63.99768354));
+elseif indx==11;   tetha=deg2rad(double(63.09679095));
+elseif indx==12;   tetha=deg2rad(double(60.10919463));
+elseif indx==13;   tetha=deg2rad(double(56.43882325));
+
+
+else disp ('you did not choose a date');    %#ok
+end
+filename=['D:\LandSatUav\bands\L9\',list{indx},'\b4.tif'];
+[aa, R]=readgeoraster(filename);
+info = georasterinfo(filename);
+code=info.CoordinateReferenceSystem.GeographicCRS.Spheroid.Code;
+clear aa
+clear filename
+red=double(readgeoraster(['D:\LandSatUav\bands\L9\',list{indx},'\b4.tif']));
+nir=double(readgeoraster(['D:\LandSatUav\bands\L9\',list{indx},'\b5.tif']));
+Band10=double(readgeoraster(['D:\LandSatUav\bands\L9\',list{indx},'\b10.tif']));
+Band11=double(readgeoraster(['D:\LandSatUav\bands\L9\',list{indx},'\b11.tif']));
+refm=double(0.00002); %REFLECTANCE_MULT band 1-9   
+refa=-0.1;  %REFLECTANCE_ADD band 1-9
+radm10=double(0.00038);%RADIANCE_MULT band 10 Landsat 9
+rada= 0.1; %RADIANCE_ADD band 10-11 
+% DN to Ref
+[h,v]=size(red);
+for i=1:h
+    for j=1:v
+        if red(i,j)<0 || nir(i,j)<0
+            red(i,j)=0;
+            nir(i,j)=0;
+        end
+    end
+end
+
+refred=((red.*refm)+refa)./sin(tetha);
+refnir=(nir.*refm)+refa ./sin(tetha);
+[hh,vv]=size(refred);
+for ii=1:hh
+    for jj=1:vv
+        if refred(ii,jj)== (-0.1/sin(tetha)) || refnir(ii,jj)== (-0.1/sin(tetha))
+            refred(ii,jj)=0;
+            refnir(ii,jj)=0;
+        end
+    end
+end
+pause(0.1);
+
+% DN to Rad
+rad10=(Band10.*radm10)+rada;
+rad11=(Band11.*radm11)+rada;
+
+% NDVI 
+NDVI=(refnir-refred)./(refnir+refred);
+[a,b]=size(NDVI);
+for i=1:a
+    for j=1:b
+        if NDVI(i,j)<0
+            NDVI(i,j)=nan;
+        elseif NDVI(i,j)>1
+            NDVI(i,j)=nan;
+        end
+    end
+end
+filename=['NDVI-',list{indx},'.tif'];
+geotiffwrite(filename,NDVI,R,"CoordRefSysCode",32630);
+[NDVI, R] = readgeoraster(filename);
+figure
+mapshow(NDVI,R,'DisplayType','mesh')
+demcmap(NDVI)
+title(filename)
+colorbar
+axis image off
+% % % Soil line
+% figure
+% scatter(nonzeros(refred),nonzeros(refnir),'k.');
+% xlabel('Red band Reflection (\mum) ')
+% ylabel('NIR band Reflection (\mum)')
+% dif=((0.95.*nonzeros(refnir))-(1.05 .* nonzeros(refred)));
+% m=[dif nonzeros(refred) nonzeros(refnir)];
+% [hhh,vvv]=size(m);
+% for iii=1:hhh
+%      for jjj=1:vvv
+%          if m(iii,2)> m(iii,3)
+%              m(iii,jjj)=0;
+%          end
+%      end
+%  end
+%  pause(0.1)
+%  for iiii=1:hhh
+%      for jjjj=1:vvv
+%          if m(iiii,1)>=0
+%              m(iiii,jjjj)=0;
+%          end
+%      end
+%  end
+%  s1=nonzeros(m(:,1));
+%  s2=nonzeros(m(:,2));
+%  s3=nonzeros(m(:,3));
+%  s=[s1 s2 s3];
+% 
+% hold on
+% scatter(s2,s3,'rx');
+% grid on
+% X = [ones(size(s2)) s2];
+% b = double(regress(s3,X));
+% YFIT = b(1) + b(2).* s2;
+% plot(s2,YFIT);
+% legend('Red vs NIR','Bare soil pixels','Soil line')
+% grid on
+% pause(0.1)
+% % SAVI calculation
+% WDVI= refnir-(refred .* b(2));
+% L= 1- 2*b(2).* NDVI .* WDVI;
+% SAVI=((refnir-refred)./(refnir+refred+L)).* (1+L);
+% filename2=['mSAVI_',list{indx},'.tif'];
+% geotiffwrite(filename2,SAVI,R,'CoordRefSysCode',32630);
+% 
+% [SAVI, R] = readgeoraster(filename2);
+% figure
+% mapshow(SAVI,R,'DisplayType','mesh')
+% demcmap(SAVI)
+% title(filename2)
+% colorbar
+% axis image off
+pause(0.1);
+% Pv
+NDVI1=NDVI;
+[aa,bb]=size(NDVI);
+for i=1:aa
+    for j=1:bb
+        if NDVI(i,j)<0.2
+            NDVI1(i,j)=0.2;
+        elseif NDVI(i,j)>0.5
+            NDVI1(i,j)=0.5;
+        else
+             NDVI1(i,j)=NDVI(i,j);
+        end
+    end
+end
+
+Pv=((NDVI1-0.2)./(0.3)).^2;
+
+%Surface Emissivity
+F=0.55;
+es=0.966; 
+ev=0.973;
+Ci=(1-es)*ev*F.*(1-Pv);
+em=zeros(size(Pv));
+YY=ev.*Pv;
+YY2=es.*(1-Pv);
+
+
+for qq=1:aa
+    for pp=1:bb
+        if NDVI(qq,pp)<0.2
+            em(qq,pp)= 0.973+(0.047.*refred(qq,pp)); 
+  
+        elseif 0.2<=NDVI(qq,pp)<=0.5
+            em(qq,pp)=YY(qq,pp)+YY2(qq,pp)+Ci(qq,pp);
+            
+
+      
+        else
+            em(qq,pp)= ev +Ci(qq,pp); 
+           
+        end
+    end
+end
+filename=['em-',list{indx},'.tif'];
+geotiffwrite(filename,em,R,"CoordRefSysCode",32630);
+[em, R] = readgeoraster(filename);
+figure
+mapshow(em,R,'DisplayType','mesh')
+demcmap(em)
+title(filename)
+colorbar
+axis image off
+
+pause(0.1)
+% Transmittance
+Prompt={'relative humidity (%)',...
+                'temparture (K)'};
+        Title='RH, T0';
+          DefaultValues={'0','3'};
+           PARAMS=inputdlg(Prompt,Title,[1 20; 1 20],DefaultValues);
+RH=(str2num(PARAMS{1}))/100; %#ok
+if RH>1
+     msgbox('RH should be between 0-100')
+     return
+end
+if RH<0
+     msgbox('RH should be between 0-100')
+     return
+end
+  T0=str2num(PARAMS{2});%#ok
+  w0=(17.27*(T0-273.15))/(273.3+(T0-273.15));
+  w1=exp(w0)*RH*6.108;
+  w2=w1*0.0981;
+  w=w2+0.1697;
+
+if (w>0.2) && (w<3)
+    tow10=(-0.0164*(w^2))-(0.04203*w)+0.9715;
+    tow11=(-0.01218*(w^2))-(0.0735*w)+0.9603;
+elseif  (w>=3) && (w<6)
+    tow10=(-0.00168*(w^2))-(0.1329*w)+1.127;
+    tow11=(0.00918*(w^2))-(0.2137*w)+1.181;
+else
+    msgbox('w is out of range, recheck the inputs')
+    return
+end
+T10=log(((K1b10)./rad10)+1);
+BT10=(K2b10./T10);
+[rf,rf2]=size(BT10);
+for i=1:rf
+    for j=1:rf2
+        if BT10(i,j)> 320
+            BT10(i,j)=0;
+        end
+    end
+end
+T11=log(((K1b11)./rad11)+1);
+BT11=(K2b11./T11);
+[rf,rf2]=size(BT11);
+for i=1:rf
+    for j=1:rf2
+        if BT11(i,j)> 320
+            BT11(i,j)=0;
+        end
+    end
+end
+c1=1.19104356E08;
+c2=14387.7;
+lambda10=10.9;
+lambda11=12;
+f10=((BT10).^2).*(lambda10/c2);
+ff10=1-exp(-c2./((lambda10).*(BT10)));
+fff10=f10.*ff10;
+x=[ones(size(nonzeros(BT10))) nonzeros(BT10)];
+bb10=regress(nonzeros(fff10),x);
+b10=bb10(2);a10=bb10(1);
+figure;
+scatter(nonzeros(BT10),nonzeros(fff10));
+hold on
+Yfit10=(b10.* nonzeros(BT10))+a10;
+plot(nonzeros(BT10),Yfit10)
+xlim tight
+ylim tight
+grid on
+R210=(corr(nonzeros(fff10),Yfit10)).^2;
+f11=((BT11).^2).*(lambda11/c2);
+ff11=1-exp(-c2./((lambda11).*(BT11)));
+fff11=f11.*ff11;
+x=[ones(size(nonzeros(BT11))) nonzeros(BT11)];
+bb11=regress(nonzeros(fff11),x);
+b11=bb11(2);a11=bb11(1);
+figure;
+scatter(nonzeros(BT11),nonzeros(fff11));
+hold on
+Yfit11=(b11.* nonzeros(BT11))+a11;
+plot(nonzeros(BT11),Yfit11)
+xlim tight
+ylim tight
+grid on
+R211=(corr(nonzeros(fff11),Yfit11)).^2;
+a10 %#ok
+b10 %#ok
+a11 %#ok
+b11 %#ok
+% SW algorithm for LST
+D10=(1-tow10)*(1+((1-em).*tow10));
+D11=(1-tow11)*(1+((1-em).*tow11));
+C10=em.*tow10;
+C11=em.*tow11;
+E0=(D11.*C10)-(D10.*C11);
+E2=(D10.*(1-C11-D11))./E0;
+E1=(D11.*(1-C10-D10))./E0;
+A=D10./E0;
+A2=A+(E2.*b11);
+A1=1+A+(E1.*b10);
+A0=(E1.*a10)+(E2.*a11);
+LSTSW=A0+(A1.*BT10)-(A2.*BT11);
+[rf,rf2]=size(LSTSW);
+for i=1:rf
+    for j=1:rf2
+        if LSTSW(i,j)<270 || LSTSW(i,j)> 350 
+            LSTSW(i,j)=nan;
+        end
+    end
+end
+
+filename=['LST-',list{indx},'.tif'];
+geotiffwrite(filename,LSTSW,R,"CoordRefSysCode",32630);
+[LSTSW, R] = readgeoraster(filename);
+figure
+mapshow(LSTSW,R,'DisplayType','mesh')
+demcmap(LSTSW)
+title(filename)
+colorbar
+axis image off
+MeanLST=nanmean(nanmean(LSTSW)) %#ok
+%% TVDI
+LST=LSTSW;
+for i=1:size(NDVI,1)
+    for j=1:size(NDVI,2)
+    if NDVI(i,j)<=0
+        NDVI(i,j)=nan;
+        LST(i,j)=nan;
+    elseif isnan(LST(i,j)) > 0
+        NDVI(i,j)=nan;
+    end
+    end
+end
+NDVI2=NDVI;LST2=LST; % will be used later
+LST=reshape(LST,[],1);
+NDVI=reshape(NDVI,[],1);
+NDVI(isnan(NDVI))=[];
+LST(isnan(LST))=[];
+figure
+scatter(NDVI, LST,'k.')
+
+L=linspace(min(NDVI),max(NDVI),11);
+
+k1 = find(NDVI>L(1) & NDVI<= L(2)); LSTmax1=max(LST(k1));LSTmin1=min(LST(k1));
+k2 = find(NDVI>L(2) & NDVI<= L(3)); LSTmax2=max(LST(k2));LSTmin2=min(LST(k2));
+k3 = find(NDVI>L(3) & NDVI<= L(4)); LSTmax3=max(LST(k3));LSTmin3=min(LST(k3));
+k4 = find(NDVI>L(4) & NDVI<= L(5)); LSTmax4=max(LST(k4));LSTmin4=min(LST(k4));
+k5 = find(NDVI>L(5) & NDVI<= L(6)); LSTmax5=max(LST(k5));LSTmin5=min(LST(k5));
+k6 = find(NDVI>L(6) & NDVI<= L(7)); LSTmax6=max(LST(k6));LSTmin6=min(LST(k6));
+k7 = find(NDVI>L(7) & NDVI<= L(8)); LSTmax7=max(LST(k7));LSTmin7=min(LST(k7));
+k8 = find(NDVI>L(8) & NDVI<= L(9)); LSTmax8=max(LST(k8));LSTmin8=min(LST(k8));
+k9 = find(NDVI>L(9) & NDVI<= L(10)); LSTmax9=max(LST(k9));LSTmin9=min(LST(k9));
+k10 = find(NDVI>L(10) & NDVI<= L(11)); LSTmax10=max(LST(k10));LSTmin10=min(LST(k10));
+
+LSTmin=[LSTmin1 LSTmin2 LSTmin3 LSTmin4 LSTmin5 LSTmin6 LSTmin7 LSTmin8 LSTmin9 LSTmin10];
+LSTmax=[LSTmax1 LSTmax2 LSTmax3 LSTmax4 LSTmax5 LSTmax6 LSTmax7 LSTmax8 LSTmax9 LSTmax10];
+
+for i=1:10
+    L(i)=(L(i)+ L(i+1))*0.5;
+    
+end
+NDVIData=L(1:10)';
+x=[ones(length(NDVIData),1) NDVIData];
+y1=LSTmax';
+y2=LSTmin';
+bmax=regress(y1,x);
+a1=bmax(1) %#ok 
+b1=bmax(2) %#ok
+bmin=regress(y2,x);
+a2=bmin(1) %#ok 
+b2=bmin(2) %#ok
+LSTmaxLine=a1+(b1.*NDVI2);
+LSTminLine=a2+(b2.*NDVI2);
+hold on
+plot(NDVI2,LSTmaxLine,'r')
+plot(NDVI2,LSTminLine,'b')
+grid on
+TVDI=((LST2-LSTminLine)./(LSTmaxLine-LSTminLine));
+[a,b]=size(TVDI);
+for i=1:a
+    for j=1:b
+        if TVDI(i,j)<0
+            TVDI(i,j)=0;
+
+%         elseif NDVI2(i,j)<=0.2
+%             TVDI(i,j)=1;
+        end
+    end
+end
+
+filename=['TVDI-',list{indx},'.tif'];
+geotiffwrite(filename,TVDI,R,"CoordRefSysCode",32630);
+[TVDI, R] = readgeoraster(filename);
+figure
+mapshow(TVDI,R,'DisplayType','mesh')
+demcmap(TVDI)
+title(filename)
+colorbar
+axis image off
+end
